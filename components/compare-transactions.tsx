@@ -8,6 +8,7 @@ import {
   AddressLookupTableProgram,
   TransactionMessage,
   VersionedTransaction,
+  LAMPORTS_PER_SOL,
 } from "@solana/web3.js"
 import { useConnection, useWallet } from "@solana/wallet-adapter-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -49,11 +50,12 @@ export function CompareTransactions({ onStatusChange }: CompareTransactionsProps
       const instructions = []
 
       for (let i = 0; i < 10; i++) {
+        console.log(addresses[i].toBase58());
         instructions.push(
           SystemProgram.transfer({
             fromPubkey: publicKey,
             toPubkey: addresses[i],
-            lamports: 1000,
+            lamports: 0.001 ** LAMPORTS_PER_SOL,
           }),
         )
       }
@@ -126,7 +128,7 @@ export function CompareTransactions({ onStatusChange }: CompareTransactionsProps
           SystemProgram.transfer({
             fromPubkey: publicKey,
             toPubkey: altAddresses[i],
-            lamports: 1000,
+            lamports: 0.001 * LAMPORTS_PER_SOL,
           }),
         )
       }

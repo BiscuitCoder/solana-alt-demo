@@ -32,6 +32,7 @@ export function ManageALT({ onStatusChange }: ManageALTProps) {
 
     try {
       // 获取用户作为 authority 的所有 ALT 账户
+      console.log('AddressLookupTableProgram.programId==>',AddressLookupTableProgram.programId.toBase58());
       const accounts = await connection.getProgramAccounts(AddressLookupTableProgram.programId, {
         filters: [
           {
@@ -42,6 +43,8 @@ export function ManageALT({ onStatusChange }: ManageALTProps) {
           },
         ],
       })
+
+      console.log('accounts==>',accounts);
 
       const alts = []
       for (const account of accounts) {

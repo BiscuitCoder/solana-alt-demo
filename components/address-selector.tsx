@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { PublicKey, SystemProgram, TransactionMessage, VersionedTransaction } from "@solana/web3.js"
+import { LAMPORTS_PER_SOL, PublicKey, SystemProgram, TransactionMessage, VersionedTransaction } from "@solana/web3.js"
 import { useConnection, useWallet } from "@solana/wallet-adapter-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -61,6 +61,8 @@ export function AddressSelector({
       const lookupTableAddress = new PublicKey(altAddress)
       const lookupTableAccount = await connection.getAddressLookupTable(lookupTableAddress)
 
+      console.log('lookupTableAccount==>',lookupTableAccount);
+
       if (!lookupTableAccount.value) {
         throw new Error("找不到 Address Lookup Table")
       }
@@ -74,7 +76,7 @@ export function AddressSelector({
           SystemProgram.transfer({
             fromPubkey: publicKey,
             toPubkey: new PublicKey(addressStr),
-            lamports: 1000,
+            lamports: 0.001 * LAMPORTS_PER_SOL,
           }),
         )
       }
