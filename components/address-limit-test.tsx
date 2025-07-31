@@ -15,6 +15,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { AlertTriangle, Loader2, TrendingUp } from "lucide-react"
 
 interface AddressLimitTestProps {
@@ -32,6 +34,7 @@ export function AddressLimitTest({ onStatusChange }: AddressLimitTestProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [normalTestResult, setNormalTestResult] = useState<TestResult>({ maxAddresses: 0, error: null })
   const [altTestResult, setAltTestResult] = useState<TestResult>({ maxAddresses: 0, error: null })
+  const [altAddress, setAltAddress] = useState("")
 
   // 生成随机地址
   const generateRandomAddresses = useCallback((count: number) => {
@@ -60,7 +63,7 @@ export function AddressLimitTest({ onStatusChange }: AddressLimitTestProps) {
             SystemProgram.transfer({
               fromPubkey: publicKey,
               toPubkey: addresses[i],
-              lamports: 1000,
+              lamports: 0.001 * LAMPORTS_PER_SOL,
             }),
           )
         }
@@ -92,40 +95,44 @@ export function AddressLimitTest({ onStatusChange }: AddressLimitTestProps) {
   // 测试 ALT 交易的地址限制
   const testALTTransactionLimit = useCallback(async (): Promise<TestResult> => {
     if (!publicKey) return { maxAddresses: 0, error: "未连接钱包" }
+    if (!altAddress.trim()) return { maxAddresses: 0, error: "请输入 ALT 地址" }
 
     try {
-      // 创建临时 ALT
-      const [lookupTableInst, lookupTableAddress] = AddressLookupTableProgram.createLookupTable({
-        authority: publicKey,
-        payer: publicKey,
-        recentSlot: await connection.getSlot(),
-      })
+      // 验证 ALT 地址格式
+      let altPublicKey: PublicKey
+      try {
+        altPublicKey = new PublicKey(altAddress.trim())
+      } catch {
+        return { maxAddresses: 0, error: "ALT 地址格式无效" }
+      }
 
-      const addresses = generateRandomAddresses(256) // ALT 最多支持 256 个地址
-
-      const extendInstruction = AddressLookupTableProgram.extendLookupTable({
-        payer: publicKey,
-        authority: publicKey,
-        lookupTable: lookupTableAddress,
-        addresses: addresses,
-      })
-
-      // 先创建 ALT
-      const createTransaction = new Transaction().add(lookupTableInst, extendInstruction)
-      const createSignature = await sendTransaction(createTransaction, connection)
-      await connection.confirmTransaction(createSignature, "confirmed")
-
-      // 等待一个 slot 让 ALT 生效
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // 获取 ALT 账户信息
-      const lookupTableAccount = await connection.getAddressLookupTable(lookupTableAddress)
+      // 查询 ALT 账户信息
+      const lookupTableAccount = await connection.getAddressLookupTable(altPublicKey)
 
       if (!lookupTableAccount.value) {
-        throw new Error("找不到刚创建的 Address Lookup Table")
+        return { 
+          maxAddresses: 0, 
+          error: "找不到指定的 Address Lookup Table，请检查地址是否正确" 
+        }
+      }
+
+      // 检查权限
+      if (!lookupTableAccount.value.state.authority?.equals(publicKey)) {
+        return { 
+          maxAddresses: 0, 
+          error: "您不是这个 ALT 的权限所有者，无法使用此 ALT 进行测试" 
+        }
       }
 
       const altAddresses = lookupTableAccount.value.state.addresses
+      
+      if (altAddresses.length === 0) {
+        return { 
+          maxAddresses: 0, 
+          error: "ALT 中没有地址，请先向 ALT 中添加地址" 
+        }
+      }
+
       let maxAddresses = 0
       let error = null
 
@@ -139,7 +146,7 @@ export function AddressLimitTest({ onStatusChange }: AddressLimitTestProps) {
               SystemProgram.transfer({
                 fromPubkey: publicKey,
                 toPubkey: altAddresses[i],
-                lamports: 1000,
+                lamports: 0.001 * LAMPORTS_PER_SOL,
               }),
             )
           }
@@ -169,7 +176,7 @@ export function AddressLimitTest({ onStatusChange }: AddressLimitTestProps) {
     } catch (error) {
       return { maxAddresses: 0, error: (error as Error).message }
     }
-  }, [publicKey, connection, sendTransaction, generateRandomAddresses])
+  }, [publicKey, connection, generateRandomAddresses, altAddress])
 
   // 开始地址限制测试
   const testAddressLimit = useCallback(async () => {
@@ -211,8 +218,25 @@ export function AddressLimitTest({ onStatusChange }: AddressLimitTestProps) {
           交易地址限制对比测试
         </CardTitle>
         <CardDescription>对比测试普通交易和 ALT 交易能够包含的最大地址数量</CardDescription>
+        <div className="text-sm text-red-400">单从序列化之后的字节来看，似乎 ALT 交易反而多一些，不知道是不是内部执行的时候不同!</div>
       </CardHeader>
       <CardContent>
+        <div className="space-y-4 mb-4">
+          <div className="space-y-2">
+            <Label htmlFor="alt-address">ALT 地址</Label>
+            <Input
+              id="alt-address"
+              placeholder="输入您的 Address Lookup Table 地址"
+              value={altAddress}
+              onChange={(e) => setAltAddress(e.target.value)}
+              disabled={isLoading}
+            />
+            <p className="text-sm text-muted-foreground">
+              请输入您已创建的 Address Lookup Table 地址进行测试
+            </p>
+          </div>
+        </div>
+
         <Button onClick={testAddressLimit} disabled={isLoading} className="w-full mb-4">
           {isLoading ? (
             <>
@@ -285,6 +309,16 @@ export function AddressLimitTest({ onStatusChange }: AddressLimitTestProps) {
         )}
 
         <div className="mt-6 space-y-4">
+          <div className="p-4 bg-blue-50 rounded-lg">
+            <h4 className="font-semibold mb-2">使用说明</h4>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              <li>• 请先在"创建 ALT"组件中创建一个 Address Lookup Table</li>
+              <li>• 向 ALT 中添加一些地址</li>
+              <li>• 复制 ALT 地址并粘贴到上面的输入框中</li>
+              <li>• 点击测试按钮开始对比测试</li>
+            </ul>
+          </div>
+
           <div className="p-4 bg-blue-50 rounded-lg">
             <h4 className="font-semibold mb-2">为什么存在地址限制？</h4>
             <ul className="text-sm text-muted-foreground space-y-1">

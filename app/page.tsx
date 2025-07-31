@@ -20,6 +20,7 @@ export default function SolanaALTDemo() {
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold mb-2">Solana Address Lookup Tables 演示</h1>
         <p className="text-muted-foreground">比较使用和不使用 Address Lookup Tables 的交易费用差异</p>
+        <a href="https://solana.com/zh/developers/guides/advanced/lookup-tables#how-to-use-an-address-lookup-table-in-a-transaction" target="_blank" className="underline text-blue-600">Developers doc</a>
       </div>
 
       <WalletConnection />
