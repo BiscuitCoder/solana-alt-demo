@@ -32,7 +32,7 @@ export function CompareTransactions({ onStatusChange }: CompareTransactionsProps
   // 生成随机地址
   const generateRandomAddresses = useCallback(() => {
     const addresses = []
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 40; i++) {
       addresses.push(new PublicKey(Array.from({ length: 32 }, () => Math.floor(Math.random() * 256))))
     }
     return addresses
@@ -49,7 +49,7 @@ export function CompareTransactions({ onStatusChange }: CompareTransactionsProps
       const addresses = generateRandomAddresses()
       const instructions = []
 
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 30; i++) {
         console.log(addresses[i].toBase58());
         instructions.push(
           SystemProgram.transfer({

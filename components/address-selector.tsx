@@ -1,12 +1,13 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { LAMPORTS_PER_SOL, PublicKey, SystemProgram, TransactionMessage, VersionedTransaction } from "@solana/web3.js"
+import { LAMPORTS_PER_SOL, PublicKey, SystemProgram, TransactionMessage, VersionedTransaction, Transaction } from "@solana/web3.js"
 import { useConnection, useWallet } from "@solana/wallet-adapter-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { CheckSquare, Loader2 } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { CheckSquare, Loader2, AlertTriangle, X } from "lucide-react"
 
 interface AddressSelectorProps {
   addresses: PublicKey[]
@@ -26,6 +27,7 @@ export function AddressSelector({
   const { connection } = useConnection()
   const { publicKey, sendTransaction } = useWallet()
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // 处理地址选择
   const handleAddressSelection = useCallback(
@@ -51,10 +53,11 @@ export function AddressSelector({
   }, [selectedAddresses.size, addresses, onSelectionChange])
 
   // 使用选中的地址发送 ALT 交易
-  const sendSelectedAddressTransaction = useCallback(async () => {
+  const sendSelectedAddressALTTransaction = useCallback(async () => {
     if (!publicKey || selectedAddresses.size === 0) return
 
     setIsLoading(true)
+    setError(null)
     onStatusChange("发送选中地址的 ALT 交易...")
 
     try {
@@ -97,11 +100,58 @@ export function AddressSelector({
       onStatusChange(`ALT 交易发送成功! 使用了 ${selectedAddresses.size} 个地址`)
     } catch (error) {
       console.error("选中地址 ALT 交易失败:", error)
-      onStatusChange("选中地址 ALT 交易失败: " + (error as Error).message)
+      const errorMessage = (error as Error).message
+      setError(`ALT 交易失败: ${errorMessage}`)
+      onStatusChange("选中地址 ALT 交易失败: " + errorMessage)
     } finally {
       setIsLoading(false)
     }
   }, [publicKey, connection, sendTransaction, altAddress, selectedAddresses, onStatusChange])
+
+  // 使用选中的地址发送常规交易
+  const sendSelectedAddressNormalTransaction = useCallback(async () => {
+    if (!publicKey || selectedAddresses.size === 0) return
+
+    setIsLoading(true)
+    setError(null)
+    onStatusChange("发送选中地址的常规交易...")
+
+    try {
+      const instructions = []
+      const selectedAddressArray = Array.from(selectedAddresses)
+
+      // 为每个选中的地址创建转账指令
+      for (const addressStr of selectedAddressArray) {
+        instructions.push(
+          SystemProgram.transfer({
+            fromPubkey: publicKey,
+            toPubkey: new PublicKey(addressStr),
+            lamports: 0.001 * LAMPORTS_PER_SOL,
+          }),
+        )
+      }
+
+      const { blockhash } = await connection.getLatestBlockhash()
+
+      // 创建常规交易
+      const transaction = new Transaction()
+      transaction.add(...instructions)
+      transaction.recentBlockhash = blockhash
+      transaction.feePayer = publicKey
+
+      const signature = await sendTransaction(transaction, connection)
+      await connection.confirmTransaction(signature, "confirmed")
+
+      onStatusChange(`常规交易发送成功! 使用了 ${selectedAddresses.size} 个地址`)
+    } catch (error) {
+      console.error("选中地址常规交易失败:", error)
+      const errorMessage = (error as Error).message
+      setError(`常规交易失败: ${errorMessage}`)
+      onStatusChange("选中地址常规交易失败: " + errorMessage)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [publicKey, connection, sendTransaction, selectedAddresses, onStatusChange])
 
   return (
     <div className="space-y-3">
@@ -131,19 +181,74 @@ export function AddressSelector({
       </ScrollArea>
 
       {selectedAddresses.size > 0 && (
-        <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-          <span className="text-sm font-medium">已选择 {selectedAddresses.size} 个地址</span>
-          <Button onClick={sendSelectedAddressTransaction} disabled={isLoading} size="sm">
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                发送中...
-              </>
-            ) : (
-              "发送 ALT 交易"
-            )}
-          </Button>
+        <div className="space-y-3 p-3 bg-blue-50 rounded-lg">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">已选择 {selectedAddresses.size} 个地址</span>
+          </div>
+          
+          <div className="flex gap-2">
+            <Button 
+              onClick={sendSelectedAddressALTTransaction} 
+              disabled={isLoading} 
+              size="sm"
+              className="flex-1"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  发送中...
+                </>
+              ) : (
+                "发送 ALT 交易"
+              )}
+            </Button>
+            
+            <Button 
+              onClick={sendSelectedAddressNormalTransaction} 
+              disabled={isLoading} 
+              size="sm"
+              variant="outline"
+              className="flex-1"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  发送中...
+                </>
+              ) : (
+                "发送常规交易"
+              )}
+            </Button>
+          </div>
+          
+          <div className="text-xs text-muted-foreground">
+            <p>• ALT 交易：使用 Address Lookup Table，节省费用</p>
+            <p>• 常规交易：直接包含地址，适合少量地址</p>
+          </div>
         </div>
+      )}
+
+      {/* 错误显示 */}
+      {error && (
+        <Alert className="border-red-200 bg-red-50">
+          <AlertTriangle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-800">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <p className="font-medium">交易失败</p>
+                <p className="text-sm mt-1">{error}</p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setError(null)}
+                className="text-red-600 hover:text-red-800 hover:bg-red-100"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
       )}
     </div>
   )

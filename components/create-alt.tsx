@@ -18,7 +18,7 @@ export function CreateALT({ onStatusChange }: CreateALTProps) {
   const { publicKey, sendTransaction } = useWallet()
   const [isLoading, setIsLoading] = useState(false)
   const [altAddress, setAltAddress] = useState<string>("")
-  const [addressCount, setAddressCount] = useState<number>(10)
+  const [addressCount, setAddressCount] = useState<number>(30)
 
   // 生成随机地址
   const generateRandomAddresses = useCallback((count: number) => {
@@ -80,7 +80,7 @@ export function CreateALT({ onStatusChange }: CreateALTProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="addressCount">初始地址数量</Label>
+          <Label htmlFor="addressCount">初始地址数量 <small className="text-xs text-red-400">（实测转账操作 ≤21 个地址，普通转账可以成功，＞21 个地址需要使用 ALT 方式发起）</small> </Label>
           <Input
             id="addressCount"
             type="number"
